@@ -1630,6 +1630,7 @@ export class HardcoverClient {
             pages
             audio_seconds
             score
+            users_count
             contributions {
               author {
                 id
