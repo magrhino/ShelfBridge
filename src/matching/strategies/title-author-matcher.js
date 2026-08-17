@@ -609,8 +609,7 @@ export class TitleAuthorMatcher {
               confidence: bestScoredBook._bookIdentificationScore.confidence,
               isBookMatch: bestScoredBook._bookIdentificationScore.isBookMatch,
               strongIdentityEvidence:
-                bestScoredBook._bookIdentificationScore
-                  .strongIdentityEvidence,
+                bestScoredBook._bookIdentificationScore.strongIdentityEvidence,
             },
             suggestion:
               bestScore > 45 && bestScore < confidenceThreshold * 100

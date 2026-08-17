@@ -12,8 +12,8 @@ function getCandidateAuthorNames(searchResult) {
     ...(searchResult?.book?.contributions || []),
   ];
   const contributionNames = contributions
-    .map(contribution =>
-      contribution?.person?.name || contribution?.author?.name,
+    .map(
+      contribution => contribution?.person?.name || contribution?.author?.name,
     )
     .filter(Boolean);
 

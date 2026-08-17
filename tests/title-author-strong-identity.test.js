@@ -39,7 +39,8 @@ const observedSafeMatches = [
     candidateAuthors: [],
   },
   {
-    source: 'He Who Fights with Monsters 12: A LitRPG Adventure: He Who Fights with Monsters, Book 12',
+    source:
+      'He Who Fights with Monsters 12: A LitRPG Adventure: He Who Fights with Monsters, Book 12',
     candidate: 'He Who Fights with Monsters 12',
     author: 'Shirtaloon, Travis Deverell',
     candidateAuthors: ['Shirtaloon', 'Travis Deverell'],
@@ -90,7 +91,8 @@ const observedSafeMatches = [
     candidateAuthors: ['Brandon Sanderson'],
   },
   {
-    source: 'American Gods: The Tenth Anniversary Edition (A Full Cast Production)',
+    source:
+      'American Gods: The Tenth Anniversary Edition (A Full Cast Production)',
     candidate: 'American Gods',
     author: 'Neil Gaiman',
     candidateAuthors: ['Neil Gaiman'],
@@ -135,9 +137,7 @@ describe('Strong title/author identity evidence', () => {
   }
 
   it('keeps the configured threshold while accepting an exact Defiance title with missing author metadata', async () => {
-    const result = searchResult(
-      'Defiance of the Fall 2: A LitRPG Adventure',
-    );
+    const result = searchResult('Defiance of the Fall 2: A LitRPG Adventure');
     const rawScore = calculateBookIdentificationScore(
       result,
       'Defiance of the Fall 2: A LitRPG Adventure',
@@ -194,10 +194,7 @@ describe('Strong title/author identity evidence', () => {
 
   it('rejects Defiance book 15 for an unnumbered Defiance book 1 title', () => {
     const score = calculateBookIdentificationScore(
-      searchResult('Defiance of the Fall 15', [
-        'TheFirstDefier',
-        'JF Brink',
-      ]),
+      searchResult('Defiance of the Fall 15', ['TheFirstDefier', 'JF Brink']),
       'Defiance of the Fall: A LitRPG Adventure',
       'TheFirstDefier, JF Brink',
     );
@@ -235,10 +232,7 @@ describe('Strong title/author identity evidence', () => {
   });
 
   it('does not select or cache the base Sandman work for Act II', async () => {
-    const baseWork = searchResult('The Sandman', [
-      'Neil Gaiman',
-      'Dirk Maggs',
-    ]);
+    const baseWork = searchResult('The Sandman', ['Neil Gaiman', 'Dirk Maggs']);
     const hardcoverClient = {
       searchBooksForMatching: mock.fn(async () => [baseWork]),
       getBookDetailsWithEditions: mock.fn(),
@@ -271,9 +265,7 @@ describe('Strong title/author identity evidence', () => {
   });
 
   it('selects a lower-scoring exact title instead of a higher-scoring unsafe candidate', async () => {
-    const unsafe = searchResult('Fourth Wing, Iron Flame', [
-      'Rebecca Yarros',
-    ]);
+    const unsafe = searchResult('Fourth Wing, Iron Flame', ['Rebecca Yarros']);
     const correct = searchResult('Fourth Wing: Empyrean, Book 1');
     const unsafeScore = calculateBookIdentificationScore(
       unsafe,
