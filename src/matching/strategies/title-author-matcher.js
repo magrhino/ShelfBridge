@@ -30,6 +30,18 @@ export class TitleAuthorMatcher {
     this.hardcoverClient = hardcoverClient;
     this.cache = cache;
     this.config = config;
+    this.matchFailures = new WeakMap();
+  }
+
+  _setMatchFailure(absBook, failure) {
+    if (absBook && typeof absBook === 'object') {
+      this.matchFailures.set(absBook, failure);
+    }
+  }
+
+  getMatchFailure(absBook) {
+    if (!absBook || typeof absBook !== 'object') return null;
+    return this.matchFailures.get(absBook) || null;
   }
 
   /**
@@ -46,6 +58,10 @@ export class TitleAuthorMatcher {
     findUserBookByEditionId = null,
     findUserBookByBookId = null,
   ) {
+    if (absBook && typeof absBook === 'object') {
+      this.matchFailures.delete(absBook);
+    }
+
     // Store the user library lookup functions for use in this matching session
     this._findUserBookByEditionIdImpl = findUserBookByEditionId;
     this._findUserBookByBookIdImpl = findUserBookByBookId;
@@ -183,6 +199,10 @@ export class TitleAuthorMatcher {
       });
 
       if (searchResults.length === 0) {
+        this._setMatchFailure(absBook, {
+          outcome: 'NOT_FOUND',
+          reason: 'No title/author search results',
+        });
         logger.debug(
           `No search results found for "${title}" in Hardcover database`,
           {
@@ -279,6 +299,9 @@ export class TitleAuthorMatcher {
           passesThreshold:
             result._bookIdentificationScore.totalScore >=
             confidenceThreshold * 100,
+          strongIdentityMatch:
+            result._bookIdentificationScore.strongIdentityEvidence?.matches ||
+            false,
           breakdown: {
             title: {
               score: `${result._bookIdentificationScore.breakdown.title?.score?.toFixed(1) || 0}%`,
@@ -328,15 +351,34 @@ export class TitleAuthorMatcher {
         })),
       });
 
-      // Find best book match above identification threshold
-      const bestBookMatch = bookScoredResults[0];
+      // Keep the configured fuzzy threshold unchanged, but allow deterministic
+      // title/author evidence to recover exact works hidden by source subtitles
+      // or missing Hardcover author metadata.
+      const bestScoredBook = bookScoredResults[0];
+      const bestBookMatch = bookScoredResults.find(result => {
+        const identificationScore = result._bookIdentificationScore;
+        return (
+          (identificationScore.isBookMatch &&
+            identificationScore.totalScore >= confidenceThreshold * 100) ||
+          identificationScore.strongIdentityEvidence?.matches === true
+        );
+      });
 
-      if (
-        bestBookMatch &&
-        bestBookMatch._bookIdentificationScore.isBookMatch &&
-        bestBookMatch._bookIdentificationScore.totalScore >=
+      if (bestBookMatch) {
+        if (
+          bestBookMatch._bookIdentificationScore.totalScore <
           confidenceThreshold * 100
-      ) {
+        ) {
+          logger.info(`Accepted strong title/author identity for "${title}"`, {
+            hardcoverTitle: bestBookMatch.title,
+            score: `${bestBookMatch._bookIdentificationScore.totalScore.toFixed(1)}%`,
+            threshold: `${(confidenceThreshold * 100).toFixed(1)}%`,
+            reason:
+              bestBookMatch._bookIdentificationScore.strongIdentityEvidence
+                ?.reason,
+          });
+        }
+
         // ====================================================================
         // STAGE 2: EDITION SELECTION
         // ====================================================================
@@ -386,6 +428,12 @@ export class TitleAuthorMatcher {
         }
 
         if (!selectedEditionResult) {
+          this._setMatchFailure(absBook, {
+            outcome: 'MATCH_REJECTED',
+            reason: 'No compatible edition found for identified book',
+            candidateTitle: bestBookMatch.title,
+            candidateBookId: bestBookMatch.id,
+          });
           logger.warn(
             `No suitable edition found for "${title}" despite successful book identification`,
           );
@@ -517,8 +565,8 @@ export class TitleAuthorMatcher {
 
         return finalMatch;
       } else {
-        const bestScore = bestBookMatch
-          ? bestBookMatch._bookIdentificationScore.totalScore
+        const bestScore = bestScoredBook
+          ? bestScoredBook._bookIdentificationScore.totalScore
           : 0;
 
         // Log the rejection decision clearly - no match was made
@@ -527,27 +575,41 @@ export class TitleAuthorMatcher {
           searchedAuthor: author || 'N/A',
           threshold: `${(confidenceThreshold * 100).toFixed(1)}%`,
           candidatesEvaluated: bookScoredResults.length,
-          bestScore: bestBookMatch ? `${bestScore.toFixed(1)}%` : 'N/A',
-          reason: bestBookMatch
-            ? bestBookMatch._bookIdentificationScore.isBookMatch
+          bestScore: bestScoredBook ? `${bestScore.toFixed(1)}%` : 'N/A',
+          reason: bestScoredBook
+            ? bestScoredBook._bookIdentificationScore.isBookMatch
               ? `Best candidate scored ${bestScore.toFixed(1)}% which is below ${(confidenceThreshold * 100).toFixed(1)}% threshold`
               : `Best candidate failed book identification criteria`
             : 'No viable candidates found',
           outcome: 'MATCH_REJECTED',
         });
 
+        this._setMatchFailure(absBook, {
+          outcome: 'MATCH_REJECTED',
+          reason: bestScoredBook
+            ? bestScoredBook._bookIdentificationScore.isBookMatch
+              ? `Best candidate scored ${bestScore.toFixed(1)}% below the configured threshold`
+              : 'Best candidate failed guarded book identity checks'
+            : 'No viable title/author candidate',
+          candidateTitle: bestScoredBook?.title || null,
+          candidateBookId: bestScoredBook?.id || null,
+          candidateScore: bestScoredBook ? bestScore : null,
+        });
+
         // Move detailed candidate info to debug level to avoid confusion
-        if (bestBookMatch) {
+        if (bestScoredBook) {
           logger.debug(`Rejected candidate details for "${title}"`, {
             rejectedCandidate: {
-              title: bestBookMatch.title,
+              title: bestScoredBook.title,
               author:
-                bestBookMatch.contributions
+                bestScoredBook.contributions
                   ?.map(c => c.author?.name)
                   .join(', ') || 'N/A',
               score: `${bestScore.toFixed(1)}%`,
-              confidence: bestBookMatch._bookIdentificationScore.confidence,
-              isBookMatch: bestBookMatch._bookIdentificationScore.isBookMatch,
+              confidence: bestScoredBook._bookIdentificationScore.confidence,
+              isBookMatch: bestScoredBook._bookIdentificationScore.isBookMatch,
+              strongIdentityEvidence:
+                bestScoredBook._bookIdentificationScore.strongIdentityEvidence,
             },
             suggestion:
               bestScore > 45 && bestScore < confidenceThreshold * 100
@@ -559,6 +621,10 @@ export class TitleAuthorMatcher {
         return null;
       }
     } catch (error) {
+      this._setMatchFailure(absBook, {
+        outcome: 'SEARCH_ERROR',
+        reason: error.message,
+      });
       logger.warn(
         `Title/author search failed for "${title}": ${error.message}`,
         {
