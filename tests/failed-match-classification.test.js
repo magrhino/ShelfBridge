@@ -66,7 +66,7 @@ describe('Failed match classification', () => {
     };
     const result = createResult();
     const manager = {
-      dryRun: true,
+      dryRun: false,
       userId: 'test-user',
       globalConfig: { force_sync: false },
       hardcover: {
