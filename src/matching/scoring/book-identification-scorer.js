@@ -190,6 +190,28 @@ export function calculateBookIdentificationScore(
     };
   }
 
+  if (strongIdentityEvidence.explicitWorkPartConflict) {
+    score -= 100;
+    breakdown.titleNumberMismatchPenalty = {
+      score: -100,
+      reason: 'Conflicting explicit volume or part numbers - different works',
+    };
+  } else {
+    const targetTitleNumbers = extractTitleNumbers(targetTitle);
+    const resultTitleNumbers = extractTitleNumbers(resultTitle);
+    if (
+      targetTitleNumbers.length > 0 &&
+      resultTitleNumbers.length > 0 &&
+      targetTitleNumbers.join(',') !== resultTitleNumbers.join(',')
+    ) {
+      score -= 100;
+      breakdown.titleNumberMismatchPenalty = {
+        score: -100,
+        reason: `Conflicting title numbers (${targetTitleNumbers.join(', ')} vs ${resultTitleNumbers.join(', ')}) - likely different works`,
+      };
+    }
+  }
+
   // ============================================================================
   // SCORE CAPPING AND CONFIDENCE DETERMINATION
   // ============================================================================
@@ -223,6 +245,10 @@ export function calculateBookIdentificationScore(
     strongIdentityEvidence,
     coreFactorsScore: titleScore * 0.35 + authorScore * 0.25, // Title + Author only
   };
+}
+
+function extractTitleNumbers(title) {
+  return normalizeTitle(title).match(/\b\d+\b/g) || [];
 }
 
 /**
