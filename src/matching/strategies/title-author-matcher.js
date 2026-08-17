@@ -271,9 +271,7 @@ export class TitleAuthorMatcher {
         canonicalExpansionReason &&
         canonicalSearchTitle &&
         (canonicalSearchTitle !== normalizedSearchTitle ||
-          (searchResults.length > 0 &&
-            author &&
-            !initialSearchUsedTitleOnly));
+          (searchResults.length > 0 && author && !initialSearchUsedTitleOnly));
 
       if (canExpandCanonicalCandidates) {
         logger.debug(`Expanding canonical candidates for "${title}"`, {
@@ -573,17 +571,15 @@ export class TitleAuthorMatcher {
               `No Listened edition available for "${title}"; using the best edition on the identified book`,
               {
                 bookId: bestBookMatch.id,
-                availableFormats: bookWithEditions.editions.map(
-                  getEditionFormat,
-                ),
+                availableFormats:
+                  bookWithEditions.editions.map(getEditionFormat),
               },
             );
           }
 
           const editionSelection = selectBestEdition(editionCandidates, {
             sourceFormat: userFormat,
-            sourceDuration:
-              extractAudioDurationFromAudiobookshelf(absBook),
+            sourceDuration: extractAudioDurationFromAudiobookshelf(absBook),
             sourceNarrator: narrator,
             profile: PROFILES.TITLE_AUTHOR,
             formatMapper: getEditionFormat,
