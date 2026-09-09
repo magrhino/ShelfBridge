@@ -26,8 +26,7 @@ async function acquireAutoAddReservation(manager, bookId, title, editionId) {
   manager.autoAddReservations ||= new Map();
 
   while (true) {
-    const existingReservation =
-      manager.autoAddReservations.get(reservationKey);
+    const existingReservation = manager.autoAddReservations.get(reservationKey);
     if (!existingReservation) {
       let resolveCompletion;
       const completion = new Promise(resolve => {
@@ -927,6 +926,75 @@ export class SyncManager {
     return {
       ...replacement.edition,
       format: this._mapHardcoverFormatToInternal(replacement.edition),
+    };
+  }
+
+  async _resolveProgressCapableAutoAddEdition(
+    absBook,
+    hardcoverMatch,
+    bookId,
+    title,
+  ) {
+    const preferredEdition = hardcoverMatch?.edition;
+    const knownEditions = [
+      ...(hardcoverMatch?.userBook?.book?.editions || []),
+      ...(hardcoverMatch?.book?.editions || []),
+      ...(preferredEdition?.book?.editions || []),
+    ];
+    let bookDetails = null;
+    let editions = knownEditions;
+
+    const hasKnownProgressCapableEdition = [
+      ...knownEditions,
+      preferredEdition,
+    ].some(candidate => this._isEditionProgressCapable(candidate));
+
+    if (!hasKnownProgressCapableEdition) {
+      logger.debug(
+        `Matched edition cannot store progress for ${title}; fetching sibling editions`,
+        {
+          bookId,
+          matchedEditionId: preferredEdition?.id,
+          matchedFormat: preferredEdition?.reading_format?.format,
+          matchedAudioSeconds: preferredEdition?.audio_seconds,
+          matchedPages: preferredEdition?.pages,
+        },
+      );
+      bookDetails = await this.hardcover.getBookEditions(bookId);
+      editions = bookDetails?.editions || [];
+    }
+
+    const editionsById = new Map();
+    for (const edition of [preferredEdition, ...editions]) {
+      if (!edition?.id) continue;
+      editionsById.set(String(edition.id), edition);
+    }
+    editions = [...editionsById.values()];
+
+    const selectedEdition = this._selectProgressCapableEdition(
+      absBook,
+      { book: { editions } },
+      preferredEdition,
+      title,
+    );
+
+    if (!selectedEdition) return null;
+
+    const sourceBook =
+      hardcoverMatch?.userBook?.book ||
+      hardcoverMatch?.book ||
+      preferredEdition?.book ||
+      {};
+
+    return {
+      edition: selectedEdition,
+      book: {
+        ...sourceBook,
+        id: bookDetails?.bookId || sourceBook.id || bookId,
+        title: bookDetails?.title || sourceBook.title || title,
+        contributions: sourceBook.contributions || [],
+        editions,
+      },
     };
   }
 
@@ -2091,7 +2159,7 @@ export class SyncManager {
 
       // For search results, userBook might be null (ASIN/ISBN matches) or populated (title/author matches)
       let bookId = this._getSearchResultBookId(hardcoverMatch);
-      const editionId = hardcoverMatch.edition?.id;
+      let editionId = hardcoverMatch.edition?.id;
 
       // If book ID is missing, look it up from the edition ID
       if (!bookId && hardcoverMatch._needsBookIdLookup) {
@@ -2187,6 +2255,25 @@ export class SyncManager {
         return syncResult;
       }
 
+      const editionResolution =
+        await this._resolveProgressCapableAutoAddEdition(
+          absBook,
+          hardcoverMatch,
+          bookId,
+          title,
+        );
+
+      if (!editionResolution) {
+        syncResult.status = 'error';
+        syncResult.reason =
+          'No progress-capable Hardcover edition found; book was not added';
+        syncResult.timing = performance.now() - startTime;
+        return syncResult;
+      }
+
+      hardcoverMatch.edition = editionResolution.edition;
+      editionId = editionResolution.edition.id;
+
       const reservationState = await acquireAutoAddReservation(
         this,
         bookId,
@@ -2239,14 +2326,11 @@ export class SyncManager {
             if (!hardcoverMatch.userBook) {
               hardcoverMatch.userBook = {
                 id: addResult.id,
-                book: {
-                  id: bookId,
-                  title: title,
-                  contributions: [], // Will be populated from the edition data if available
-                },
+                book: editionResolution.book,
               };
             } else {
               hardcoverMatch.userBook.id = addResult.id;
+              hardcoverMatch.userBook.book = editionResolution.book;
             }
             hardcoverMatch._isSearchResult = false; // No longer just a search result
           } else {
@@ -2525,8 +2609,7 @@ export class SyncManager {
           `Searching Hardcover by ISBN-10 from numeric ASIN: ${numericAsinIsbn}`,
           { dryRun: this.dryRun },
         );
-        searchResults =
-          await this.hardcover.searchBooksByIsbn(numericAsinIsbn);
+        searchResults = await this.hardcover.searchBooksByIsbn(numericAsinIsbn);
         logger.info(
           `Numeric ASIN ISBN-10 search returned ${searchResults.length} results`,
           {
@@ -3082,7 +3165,37 @@ export class SyncManager {
         edition = searchResults[0];
       }
 
-      const bookId = edition.book.id;
+      const matchedBookId = edition?.book?.id;
+      if (!matchedBookId || !edition?.id) {
+        return {
+          status: 'error',
+          reason: 'Matched Hardcover result is missing a book or edition ID',
+          title,
+        };
+      }
+
+      const editionResolution =
+        await this._resolveProgressCapableAutoAddEdition(
+          absBook,
+          { edition, book: edition.book },
+          matchedBookId,
+          title,
+        );
+
+      if (!editionResolution) {
+        return {
+          status: 'error',
+          reason:
+            'No progress-capable Hardcover edition found; book was not added',
+          title,
+        };
+      }
+
+      edition = {
+        ...editionResolution.edition,
+        book: editionResolution.book,
+      };
+      const bookId = editionResolution.book.id;
       const editionId = edition.id;
       reservationState = await acquireAutoAddReservation(
         this,
