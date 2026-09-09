@@ -1,10 +1,14 @@
 import { calculateTextSimilarity } from './text-matching.js';
 import {
   hasConflictingExplicitWorkParts,
+  getCollectionSize,
+  getWorkNumberMarkers,
   isCollectionTitle,
   normalizeIdentityTitle,
   normalizeWorkTitle,
 } from './book-title-identity.js';
+
+const MIN_IDENTIFIER_TITLE_SIMILARITY = 0.75;
 
 /**
  * Check that an identifier result still resembles the source work. Identifier
@@ -13,7 +17,30 @@ import {
  */
 export function isIdentifierTitlePlausible(sourceTitle, candidateTitle) {
   if (!sourceTitle || !candidateTitle) return true;
-  if (hasConflictingExplicitWorkParts(sourceTitle, candidateTitle)) {
+
+  if (hasConflictingExplicitWorkParts(sourceTitle, candidateTitle)) return false;
+
+  const sourceWorkNumbers = getWorkNumberMarkers(sourceTitle);
+  const candidateWorkNumbers = getWorkNumberMarkers(candidateTitle);
+  if (
+    sourceWorkNumbers.length > 0 &&
+    candidateWorkNumbers.length > 0 &&
+    sourceWorkNumbers.join('|') !== candidateWorkNumbers.join('|')
+  ) {
+    return false;
+  }
+
+  const sourceIsCollection = isCollectionTitle(sourceTitle);
+  const candidateIsCollection = isCollectionTitle(candidateTitle);
+  if (sourceIsCollection !== candidateIsCollection) return false;
+
+  const sourceCollectionSize = getCollectionSize(sourceTitle);
+  const candidateCollectionSize = getCollectionSize(candidateTitle);
+  if (
+    sourceCollectionSize &&
+    candidateCollectionSize &&
+    sourceCollectionSize !== candidateCollectionSize
+  ) {
     return false;
   }
 
@@ -22,16 +49,18 @@ export function isIdentifierTitlePlausible(sourceTitle, candidateTitle) {
   if (!normalizedSource || !normalizedCandidate) return true;
   if (normalizedSource === normalizedCandidate) return true;
 
-  const sourceIsCollection = isCollectionTitle(sourceTitle);
-  const candidateIsCollection = isCollectionTitle(candidateTitle);
-  if (candidateIsCollection && !sourceIsCollection) return false;
-
   const sourceBase = normalizeWorkTitle(sourceTitle);
   const candidateBase = normalizeWorkTitle(candidateTitle);
-  if (sourceBase && sourceBase === candidateBase) return true;
+  if (
+    sourceBase &&
+    sourceBase === candidateBase &&
+    (normalizedSource === sourceBase || normalizedCandidate === candidateBase)
+  ) {
+    return true;
+  }
 
   return (
     calculateTextSimilarity(normalizedSource, normalizedCandidate, 'title') >=
-    0.55
+    MIN_IDENTIFIER_TITLE_SIMILARITY
   );
 }
