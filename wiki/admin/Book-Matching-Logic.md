@@ -55,6 +55,8 @@ The title/author matching has been **completely redesigned** with a two-stage ar
 
 ### **Stage 2: Edition Selection**
 
+When full book details are fetched, title/author identity is checked again before selecting or caching an edition. Missing-author search hits require this lookup even when they already include editions. A provisional exact-title match with missing search-result authors is rejected if the fetched details fail the same identity checks. Rejected candidates are not used for library sync or auto-add.
+
 - **Purpose**: Pick the best edition/format for the identified book
 - **Method**: Automatic format detection + intelligent fallbacks
 - **Format Preferences**:

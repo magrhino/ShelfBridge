@@ -329,3 +329,155 @@ describe('Strong title/author identity evidence', () => {
     assert.equal(score.strongIdentityEvidence.matches, false);
   });
 });
+
+describe('Identity validation after fetching book details', () => {
+  for (const [audiobook, embeddedEditions] of [
+    [true, false],
+    [false, false],
+    [true, true],
+    [false, true],
+  ]) {
+    for (const inLibrary of [true, false]) {
+      it(`rejects a conflicting fetched author for ${audiobook ? 'audio' : 'ebook'} ${inLibrary ? 'library matches' : 'auto-adds'}${embeddedEditions ? ' with embedded editions' : ''}`, async () => {
+        const title = 'A Distinctive Book Title';
+        const absBook = {
+          title,
+          author: 'Alice Writer',
+          media: audiobook ? { duration: 36000 } : {},
+        };
+        const edition = {
+          id: 22,
+          ...(audiobook ? { audio_seconds: 36000 } : { pages: 300 }),
+          reading_format: { format: audiobook ? 'Listened' : 'Read' },
+        };
+        const details = {
+          id: 2,
+          title,
+          contributions: [{ author: { name: 'Robert Example' } }],
+          editions: [edition],
+        };
+        const hydratedScore = calculateBookIdentificationScore(
+          details,
+          title,
+          absBook.author,
+        );
+        assert.equal(hydratedScore.strongIdentityEvidence.matches, false);
+        assert.ok(hydratedScore.totalScore < 70);
+        const client = {
+          searchBooksForMatching: mock.fn(async () => [
+            {
+              id: 2,
+              title,
+              contributions: [],
+              ...(embeddedEditions ? { editions: [edition] } : {}),
+              _searchMetadata: { searchStrategy: 'title_only_fallback' },
+            },
+          ]),
+          getBookDetailsWithEditions: mock.fn(async () => details),
+        };
+        const cache = {
+          generateTitleAuthorIdentifier: () => 'test-key',
+          getCachedBookInfo: mock.fn(async () => null),
+          storeEditionMapping: mock.fn(async () => {}),
+        };
+        const matcher = new TitleAuthorMatcher(client, cache, {
+          title_author_matching: { confidence_threshold: 0.7 },
+        });
+        const existingBook = inLibrary ? { id: 111, book: details } : null;
+        const result = await matcher.findMatch(
+          absBook,
+          'test-user',
+          () => existingBook,
+          () => existingBook,
+        );
+        assert.equal(result, null);
+        assert.equal(cache.storeEditionMapping.mock.callCount(), 0);
+        assert.equal(
+          matcher.getMatchFailure(absBook)?.outcome,
+          'MATCH_REJECTED',
+        );
+        assert.equal(client.getBookDetailsWithEditions.mock.callCount(), 1);
+      });
+    }
+  }
+
+  for (const throws of [false, true]) {
+    it(`does not cache sparse embedded editions when detail lookup ${throws ? 'throws' : 'returns null'}`, async () => {
+      const title = 'A Distinctive Book Title';
+      const cache = {
+        generateTitleAuthorIdentifier: () => 'test-key',
+        getCachedBookInfo: mock.fn(async () => null),
+        storeEditionMapping: mock.fn(async () => {}),
+      };
+      const client = {
+        searchBooksForMatching: mock.fn(async () => [
+          {
+            id: 2,
+            title,
+            editions: [
+              {
+                id: 22,
+                audio_seconds: 36000,
+                reading_format: { format: 'Listened' },
+              },
+            ],
+          },
+        ]),
+        getBookDetailsWithEditions: mock.fn(async () => {
+          if (throws) throw new Error('Details unavailable');
+          return null;
+        }),
+      };
+      const matcher = new TitleAuthorMatcher(client, cache, {
+        title_author_matching: { confidence_threshold: 0.7 },
+      });
+      const result = await matcher.findMatch(
+        { title, author: 'Alice Writer', media: { duration: 36000 } },
+        'test-user',
+      );
+      assert.equal(result, null);
+      assert.equal(client.getBookDetailsWithEditions.mock.callCount(), 1);
+      assert.equal(cache.storeEditionMapping.mock.callCount(), 0);
+    });
+  }
+
+  it('accepts a fetched matching author and records the updated identity score', async () => {
+    const title = 'A Distinctive Book Title';
+    const author = 'Alice Writer';
+    const details = {
+      id: 2,
+      title,
+      contributions: [{ author: { name: author } }],
+      editions: [
+        {
+          id: 22,
+          audio_seconds: 36000,
+          reading_format: { format: 'Listened' },
+        },
+      ],
+    };
+    const cache = {
+      generateTitleAuthorIdentifier: () => 'test-key',
+      getCachedBookInfo: mock.fn(async () => null),
+      storeEditionMapping: mock.fn(async () => {}),
+    };
+    const matcher = new TitleAuthorMatcher(
+      {
+        searchBooksForMatching: async () => [{ id: 2, title }],
+        getBookDetailsWithEditions: async () => details,
+      },
+      cache,
+      { title_author_matching: { confidence_threshold: 0.7 } },
+    );
+    const result = await matcher.findMatch(
+      { title, author, media: { duration: 36000 } },
+      'test-user',
+    );
+    assert.equal(result.book.id, 2);
+    assert.equal(
+      result._bookIdentificationScore.strongIdentityEvidence.authorOverlap,
+      true,
+    );
+    assert.equal(cache.storeEditionMapping.mock.callCount(), 1);
+  });
+});

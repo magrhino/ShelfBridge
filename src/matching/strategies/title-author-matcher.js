@@ -539,8 +539,12 @@ export class TitleAuthorMatcher {
         let finalMatch = null;
         let bookWithEditions =
           prefetchedBookDetails.get(String(bestBookMatch.id)) || bestBookMatch;
+        const needsIdentityDetails =
+          bestBookMatch._bookIdentificationScore.strongIdentityEvidence
+            ?.candidateAuthorMissing &&
+          !prefetchedBookDetails.has(String(bestBookMatch.id));
 
-        if (!bookWithEditions.editions?.length) {
+        if (!bookWithEditions.editions?.length || needsIdentityDetails) {
           logger.debug(`Fetching editions for book ID ${bestBookMatch.id}`);
           try {
             bookWithEditions =
@@ -548,6 +552,7 @@ export class TitleAuthorMatcher {
                 bestBookMatch.id,
               );
           } catch (error) {
+            bookWithEditions = null;
             logger.warn(
               `Failed to fetch editions for book ID ${bestBookMatch.id}:`,
               error.message,
@@ -556,6 +561,34 @@ export class TitleAuthorMatcher {
         }
 
         if (bookWithEditions?.editions?.length) {
+          // Search hits can omit authors. Recheck identity using the fetched
+          // details before a provisional title match can be cached or synced.
+          const resolvedCandidate = { ...bestBookMatch, ...bookWithEditions };
+          resolvedCandidate._bookIdentificationScore =
+            calculateBookIdentificationScore(
+              resolvedCandidate,
+              title,
+              author,
+              absBook,
+            );
+          if (!isAcceptableBookMatch(resolvedCandidate, confidenceThreshold)) {
+            this._setMatchFailure(absBook, {
+              outcome: 'MATCH_REJECTED',
+              reason: 'Fetched book details do not confirm the source identity',
+              candidateTitle: resolvedCandidate.title,
+              candidateBookId: resolvedCandidate.id,
+              candidateScore:
+                resolvedCandidate._bookIdentificationScore.totalScore,
+            });
+            logger.warn(`Rejected fetched book identity for "${title}"`, {
+              bookId: resolvedCandidate.id,
+              candidateTitle: resolvedCandidate.title,
+            });
+            return null;
+          }
+          bestBookMatch._bookIdentificationScore =
+            resolvedCandidate._bookIdentificationScore;
+
           const editionCandidates = getPreferredFormatCandidates(
             bookWithEditions.editions,
             userFormat,
