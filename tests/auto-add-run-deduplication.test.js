@@ -52,6 +52,12 @@ function createManager({
     _mapHardcoverFormatToInternal:
       SyncManager.prototype._mapHardcoverFormatToInternal,
     _areFormatsCompatible: SyncManager.prototype._areFormatsCompatible,
+    _getEditionProgressBasis: SyncManager.prototype._getEditionProgressBasis,
+    _isEditionProgressCapable: SyncManager.prototype._isEditionProgressCapable,
+    _selectProgressCapableEdition:
+      SyncManager.prototype._selectProgressCapableEdition,
+    _resolveProgressCapableAutoAddEdition:
+      SyncManager.prototype._resolveProgressCapableAutoAddEdition,
   };
 }
 
@@ -74,10 +80,10 @@ describe('Within-run auto-add deduplication', () => {
       tryAutoAdd(manager, 'abs-lost-metal-full-cast'),
     ]);
 
-    assert.deepEqual(
-      results.map(result => result.status).sort(),
-      ['auto_added', 'skipped'],
-    );
+    assert.deepEqual(results.map(result => result.status).sort(), [
+      'auto_added',
+      'skipped',
+    ]);
     assert.equal(results.filter(result => result.duplicate).length, 1);
     assert.equal(manager.autoAddReservations.size, 1);
     assert.equal(manager.hardcover.addBookToLibrary.mock.callCount(), 0);
