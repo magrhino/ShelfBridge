@@ -2,11 +2,15 @@ import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
 
 import { AsinMatcher } from '../src/matching/strategies/asin-matcher.js';
-import { getIsbn10FromNumericAsin } from '../src/matching/utils/text-matching.js';
+import {
+  getIsbn10FromNumericAsin,
+  normalizeAsin,
+} from '../src/matching/utils/text-matching.js';
 import { SyncManager } from '../src/sync-manager.js';
 
 describe('Numeric ASIN ISBN-10 fallback', () => {
   it('only treats valid numeric ISBN-10 values as fallback candidates', () => {
+    assert.equal(normalizeAsin('1250759781'), '1250759781');
     assert.equal(getIsbn10FromNumericAsin('1250759781'), '1250759781');
     assert.equal(getIsbn10FromNumericAsin('B082FQRWWR'), null);
     assert.equal(getIsbn10FromNumericAsin('1250759782'), null);
@@ -88,6 +92,13 @@ describe('Numeric ASIN ISBN-10 fallback', () => {
       _mapHardcoverFormatToInternal:
         SyncManager.prototype._mapHardcoverFormatToInternal,
       _areFormatsCompatible: SyncManager.prototype._areFormatsCompatible,
+      _getEditionProgressBasis: SyncManager.prototype._getEditionProgressBasis,
+      _isEditionProgressCapable:
+        SyncManager.prototype._isEditionProgressCapable,
+      _selectProgressCapableEdition:
+        SyncManager.prototype._selectProgressCapableEdition,
+      _resolveProgressCapableAutoAddEdition:
+        SyncManager.prototype._resolveProgressCapableAutoAddEdition,
     };
 
     const result = await SyncManager.prototype._tryAutoAddBook.call(
@@ -124,6 +135,7 @@ describe('Numeric ASIN ISBN-10 fallback', () => {
           {
             id: 'ready-player-two-audio',
             asin: '0593396960',
+            audio_seconds: 1,
             reading_format: { format: 'Listened' },
             book: { id: 'ready-player-two-book', title: 'Ready Player Two' },
           },
@@ -141,6 +153,13 @@ describe('Numeric ASIN ISBN-10 fallback', () => {
       _mapHardcoverFormatToInternal:
         SyncManager.prototype._mapHardcoverFormatToInternal,
       _areFormatsCompatible: SyncManager.prototype._areFormatsCompatible,
+      _getEditionProgressBasis: SyncManager.prototype._getEditionProgressBasis,
+      _isEditionProgressCapable:
+        SyncManager.prototype._isEditionProgressCapable,
+      _selectProgressCapableEdition:
+        SyncManager.prototype._selectProgressCapableEdition,
+      _resolveProgressCapableAutoAddEdition:
+        SyncManager.prototype._resolveProgressCapableAutoAddEdition,
     };
 
     const result = await SyncManager.prototype._tryAutoAddBook.call(
