@@ -169,9 +169,6 @@ export class SyncManager {
     // Increment sync count (for tracking purposes)
     const _syncTracking = await this.cache.incrementSyncCount(this.userId);
 
-    // Process expired sessions before starting new sync
-    await this._processExpiredSessions();
-
     const result = {
       books_processed: 0,
       books_synced: 0,
@@ -190,6 +187,30 @@ export class SyncManager {
     };
 
     try {
+      // Get books from Hardcover
+      const hardcoverBooks = await this.hardcover.getUserBooks();
+      if (!hardcoverBooks || hardcoverBooks.length === 0) {
+        logger.warn('No books found in Hardcover library');
+      }
+
+      // Store for cross-referencing in cache logic
+      this.hardcoverBooks = hardcoverBooks;
+
+      // Update book matcher with user library data
+      this.bookMatcher.setUserLibrary(
+        hardcoverBooks,
+        this._mapHardcoverFormatToInternal.bind(this),
+      );
+
+      // Recover persisted sessions with real library IDs, including on startup.
+      const recovered = await this._processExpiredSessions();
+      result.expired_sessions_processed = recovered.processed;
+      if (recovered.errors > 0) {
+        result.errors.push(
+          `Failed to recover ${recovered.errors} expired session(s); pending progress retained`,
+        );
+      }
+
       // Get books from Audiobookshelf
       const absBooks = await this.audiobookshelf.getReadingProgress();
 
@@ -269,21 +290,6 @@ export class SyncManager {
           );
         }
       }
-
-      // Get books from Hardcover
-      const hardcoverBooks = await this.hardcover.getUserBooks();
-      if (!hardcoverBooks || hardcoverBooks.length === 0) {
-        logger.warn('No books found in Hardcover library');
-      }
-
-      // Store for cross-referencing in cache logic
-      this.hardcoverBooks = hardcoverBooks;
-
-      // Update book matcher with user library data
-      this.bookMatcher.setUserLibrary(
-        hardcoverBooks,
-        this._mapHardcoverFormatToInternal.bind(this),
-      );
 
       booksToProcess = await this._prioritizeBooksForSync(booksToProcess);
 
@@ -4459,155 +4465,56 @@ export class SyncManager {
    * @private
    */
   async _processExpiredSessions() {
+    // A preview must not consume pending updates or advance the sync cache.
+    if (this.dryRun) return { processed: 0, errors: 0 };
+
     try {
-      const processingResult = await this.sessionManager.processExpiredSessions(
+      return await this.sessionManager.processExpiredSessions(
         this.userId,
         async sessionData => {
-          // Callback to sync expired session progress to Hardcover
-          logger.info(`Processing expired session for ${sessionData.title}`, {
-            finalProgress: sessionData.finalProgress,
-            identifier: sessionData.identifier,
-            identifierType: sessionData.identifierType,
-          });
-
-          // Create a mock book object for the sync process
-          const mockBook = {
-            id: `expired-session-${sessionData.identifier}`,
-            progress_percentage: sessionData.finalProgress,
-            is_finished: sessionData.finalProgress >= 95,
-            last_listened_at: sessionData.sessionData.session_last_change,
-            started_at:
-              sessionData.sessionData.started_at ||
-              sessionData.sessionData.session_last_change,
-          };
-
-          // Find the book match using the stored identifier
-          const identifiers = {};
-          identifiers[sessionData.identifierType] = sessionData.identifier;
-
-          // Try to find existing Hardcover match using stored identifier
-          // For expired sessions, we should use a direct lookup since we have the exact identifier
-          let matchResult = null;
-
-          try {
-            // Create a minimal book object for matching
-            const sessionBook = {
-              id: mockBook.id,
-              media: {
-                metadata: {
-                  title: sessionData.title,
-                  authors: [{ name: 'Session Author' }], // We may not have author stored
-                  ...identifiers, // Add the stored identifier (isbn, asin, or title_author key)
-                },
-              },
-            };
-
-            // Use the standard findMatch flow but skip expensive operations if we have cached data
-            matchResult = await this.bookMatcher.findMatch(
-              sessionBook,
-              this.userId,
+          const {
+            edition_id: editionId,
+            author,
+            started_at: startedAt,
+          } = sessionData.sessionData;
+          const userBook = this._findUserBookByEditionId(editionId);
+          const edition = this._findEditionInUserBook(userBook, editionId);
+          if (!userBook || !edition) {
+            throw new Error(
+              `Cannot resolve cached edition for expired session: ${sessionData.title}`,
             );
-          } catch (sessionMatchError) {
-            logger.warn(
-              `Session matching failed for ${sessionData.title}: ${sessionMatchError.message}`,
-            );
-            matchResult = null;
           }
 
-          if (matchResult && matchResult.match) {
-            // Sync directly to Hardcover using the existing match
-            await this._syncToHardcover(
-              mockBook,
-              matchResult.match,
-              sessionData.identifier,
-              sessionData.title,
-              sessionData.finalProgress,
-              sessionData.identifierType,
-            );
-
-            logger.info(
-              `Successfully synced expired session for ${sessionData.title}`,
-            );
-          } else {
-            logger.warn(
-              `Could not find Hardcover match for expired session: ${sessionData.title}`,
+          const book = {
+            progress_percentage: sessionData.finalProgress,
+            last_listened_at: sessionData.sessionData.session_last_change,
+            started_at: startedAt,
+            media: {
+              metadata: {
+                title: sessionData.title,
+                authors: [{ name: author || 'Unknown Author' }],
+                [sessionData.identifierType]: sessionData.identifier,
+              },
+            },
+          };
+          const syncResult = await this._syncExistingBook(
+            book,
+            { userBook, edition },
+            sessionData.identifierType,
+            sessionData.identifier,
+            sessionData.title,
+            author || 'Unknown Author',
+          );
+          if (!['synced', 'completed'].includes(syncResult.status)) {
+            throw new Error(
+              syncResult.reason || 'Expired session update was not confirmed',
             );
           }
         },
       );
-
-      if (processingResult.processed > 0) {
-        console.log(
-          `📋 Processed ${processingResult.processed} expired sessions`,
-        );
-        logger.info(`Processed expired sessions`, processingResult);
-      }
-
-      return processingResult;
     } catch (err) {
       logger.error(`Error processing expired sessions: ${err.message}`);
       return { processed: 0, errors: 1 };
-    }
-  }
-
-  /**
-   * Sync progress directly to Hardcover (used for expired sessions)
-   * @private
-   */
-  async _syncToHardcover(
-    mockBook,
-    hardcoverMatch,
-    identifier,
-    title,
-    progressPercent,
-    identifierType,
-  ) {
-    try {
-      let result = null;
-
-      if (!this.dryRun) {
-        // Update reading progress on Hardcover
-        result = await this.hardcover.updateReadingProgress(
-          hardcoverMatch.userBookId,
-          progressPercent,
-          progressPercent,
-          hardcoverMatch.edition.id,
-          hardcoverMatch.useSeconds || false,
-          mockBook.started_at,
-          this.globalConfig.reread_detection,
-        );
-
-        if (result && result.id) {
-          logger.debug(
-            `Updated Hardcover progress for ${title}: ${progressPercent}%`,
-          );
-        }
-      } else {
-        logger.info(
-          `[DRY RUN] Would update Hardcover progress for ${title}: ${progressPercent}%`,
-        );
-      }
-
-      // Extract status from result if available
-      const statusId = result?._statusInfo?.currentStatusId || null;
-
-      // Store the final progress in cache
-      await this.cache.storeProgress(
-        this.userId,
-        identifier,
-        title,
-        progressPercent,
-        identifierType,
-        mockBook.last_listened_at,
-        mockBook.started_at,
-        statusId, // Status retrieved from updateReadingProgress result
-        hardcoverMatch.edition?.id, // Store edition_id for cache comparison
-      );
-    } catch (err) {
-      logger.error(
-        `Error syncing expired session to Hardcover for ${title}: ${err.message}`,
-      );
-      throw err;
     }
   }
 
