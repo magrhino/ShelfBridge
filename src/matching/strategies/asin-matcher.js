@@ -59,9 +59,7 @@ export class AsinMatcher {
             `ASIN search returned ${searchResults.length} results for ${identifiers.asin}`,
           );
 
-          const numericAsinIsbn = getIsbn10FromNumericAsin(
-            identifiers.asin,
-          );
+          const numericAsinIsbn = getIsbn10FromNumericAsin(identifiers.asin);
           if (
             searchResults.length === 0 &&
             numericAsinIsbn &&
@@ -70,9 +68,8 @@ export class AsinMatcher {
             logger.debug(
               `Retrying numeric ASIN ${identifiers.asin} as ISBN-10`,
             );
-            searchResults = await this.hardcoverClient.searchBooksByIsbn(
-              numericAsinIsbn,
-            );
+            searchResults =
+              await this.hardcoverClient.searchBooksByIsbn(numericAsinIsbn);
             searchMethod = 'isbn';
           }
 

@@ -4,9 +4,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, fork]
   pull_request:
-    branches: [main]
+    branches: [main, fork]
   workflow_dispatch:
 
 concurrency:
@@ -53,7 +53,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-      packages: write
 
     steps:
       - name: Checkout code
@@ -64,30 +63,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push test image
+      - name: Build test image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
-          push: true
+          push: false
           load: true
-          tags: |
-            ghcr.io/rohit-purandare/shelfbridge:test
-            ghcr.io/rohit-purandare/shelfbridge:pr-${{ github.event.number }}
-            ghcr.io/rohit-purandare/shelfbridge:${{ github.sha }}
+          tags: shelfbridge:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
       - name: Test Docker image
         env:
-          TEST_IMAGE: ghcr.io/rohit-purandare/shelfbridge:${{ github.sha }}
+          TEST_IMAGE: shelfbridge:ci
         run: |
           echo "Testing Docker image functionality..."
 
@@ -101,13 +90,3 @@ jobs:
           docker run --rm --entrypoint="" "$TEST_IMAGE" node -e "console.log('Docker build test passed')"
 
           echo "✅ Docker image test completed successfully"
-
-      - name: Display test image info
-        run: |
-          echo "🐳 Test images published:"
-          echo "  - ghcr.io/rohit-purandare/shelfbridge:pr-${{ github.event.number }}"
-          echo "  - ghcr.io/rohit-purandare/shelfbridge:${{ github.sha }}"
-          echo ""
-          echo "📋 Usage:"
-          echo "  docker pull ghcr.io/rohit-purandare/shelfbridge:pr-${{ github.event.number }}"
-          echo "  docker run ghcr.io/rohit-purandare/shelfbridge:pr-${{ github.event.number }}"

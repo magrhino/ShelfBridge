@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
 
+import {
+  normalizeCanonicalWorkTitle,
+  normalizeWorkTitle,
+} from '../src/matching/utils/book-title-identity.js';
 import { AsinMatcher } from '../src/matching/strategies/asin-matcher.js';
 import { IsbnMatcher } from '../src/matching/strategies/isbn-matcher.js';
 import { isIdentifierTitlePlausible } from '../src/matching/utils/identifier-title-validator.js';
@@ -44,6 +48,14 @@ function createAutoAddManager({
 }
 
 describe('Identifier title validation', () => {
+  it('preserves canonical hyphen search without weakening identifier identity', () => {
+    assert.equal(
+      normalizeCanonicalWorkTitle('Example - Special Edition'),
+      'example',
+    );
+    assert.equal(normalizeWorkTitle('Example-One'), 'example1');
+  });
+
   it('rejects a single book mapped to a multi-book collection', () => {
     assert.equal(
       isIdentifierTitlePlausible(

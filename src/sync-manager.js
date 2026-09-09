@@ -2645,9 +2645,12 @@ export class SyncManager {
             })),
           },
         );
+        searchResults = filterPlausibleResults(
+          searchResults,
+          'ISBN-10',
+          numericAsinIsbn,
+        );
       }
-
-      searchResults = filterPlausibleResults(searchResults, 'ISBN-10', numericAsinIsbn);
 
       if (
         searchResults.length === 0 &&

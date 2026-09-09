@@ -4,7 +4,7 @@ import {
   isCanonicalTitleReductionSafe,
   isCollectionTitle,
   normalizeIdentityTitle,
-  normalizeWorkTitle,
+  normalizeCanonicalWorkTitle,
 } from './book-title-identity.js';
 
 function getCandidateAuthorNames(searchResult) {
@@ -13,8 +13,8 @@ function getCandidateAuthorNames(searchResult) {
     ...(searchResult?.book?.contributions || []),
   ];
   const contributionNames = contributions
-    .map(contribution =>
-      contribution?.person?.name || contribution?.author?.name,
+    .map(
+      contribution => contribution?.person?.name || contribution?.author?.name,
     )
     .filter(Boolean);
 
@@ -53,7 +53,7 @@ export function evaluateStrongBookIdentity(
   const candidateTitle = searchResult?.title || '';
   const sourceTitle = normalizeIdentityTitle(targetTitle);
   const candidateIdentityTitle = normalizeIdentityTitle(candidateTitle);
-  const sourceWorkTitle = normalizeWorkTitle(targetTitle);
+  const sourceWorkTitle = normalizeCanonicalWorkTitle(targetTitle);
 
   const fullTitleMatch =
     !!sourceTitle && sourceTitle === candidateIdentityTitle;

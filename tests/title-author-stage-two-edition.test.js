@@ -10,10 +10,7 @@ function createAbsBook(number, duration) {
   const title = `Defiance of the Fall${numberedTitle}: A LitRPG Adventure`;
   return {
     id: `abs-defiance-${number || 1}`,
-    title:
-      number === 5
-        ? `${title} (Defiance of the Fall, Book 5)`
-        : title,
+    title: number === 5 ? `${title} (Defiance of the Fall, Book 5)` : title,
     author,
     narrator: 'Pavi Proczko',
     duration,
@@ -147,10 +144,7 @@ describe('Title/author Stage 2 edition selection', () => {
         matcher.config.title_author_matching.confidence_threshold,
         0.7,
       );
-      assert.equal(
-        hardcoverClient.searchBooksForMatching.mock.callCount(),
-        2,
-      );
+      assert.equal(hardcoverClient.searchBooksForMatching.mock.callCount(), 2);
       assert.equal(
         hardcoverClient.searchBooksForMatching.mock.calls[1].arguments[0],
         `defiance of the fall ${example.number}`,
@@ -290,9 +284,6 @@ describe('Title/author Stage 2 edition selection', () => {
       matcher.config.title_author_matching.confidence_threshold,
       0.7,
     );
-    assert.equal(
-      hardcoverClient.searchBooksForMatching.mock.callCount(),
-      1,
-    );
+    assert.equal(hardcoverClient.searchBooksForMatching.mock.callCount(), 1);
   });
 });

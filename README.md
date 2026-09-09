@@ -1,6 +1,8 @@
 # ShelfBridge
 
-<!-- Trigger Docker build for fix/missing-book-id branch -->
+Maintained fork: `ghcr.io/magrhino/shelfbridge:fork`. See the
+[fork guide](wiki/technical/Fork-Maintenance.md) for manual publishing, rollback, and upstream imports.
+Based on [Rohit Purandare’s ShelfBridge](https://github.com/rohit-purandare/ShelfBridge).
 
 Sync your audiobook reading progress from Audiobookshelf to Hardcover automatically.
 
@@ -12,7 +14,7 @@ Sync your audiobook reading progress from Audiobookshelf to Hardcover automatica
 
 ```bash
 # Download docker-compose.yml
-curl -O https://raw.githubusercontent.com/rohit-purandare/ShelfBridge/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/magrhino/ShelfBridge/fork/docker-compose.yml
 
 # Edit docker-compose.yml and uncomment/set your environment variables:
 # SHELFBRIDGE_USER_0_ID: "your_username"
@@ -28,7 +30,7 @@ docker-compose up -d
 
 ```bash
 # Download and start
-curl -O https://raw.githubusercontent.com/rohit-purandare/ShelfBridge/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/magrhino/ShelfBridge/fork/docker-compose.yml
 docker-compose up -d
 
 # Configure your settings
@@ -44,7 +46,7 @@ ShelfBridge supports Node.js 22 and 24. Node.js 24 LTS is recommended.
 
 ```bash
 # Clone and install
-git clone https://github.com/rohit-purandare/ShelfBridge.git
+git clone --branch fork https://github.com/magrhino/ShelfBridge.git
 cd ShelfBridge && npm install
 
 # Configure and start

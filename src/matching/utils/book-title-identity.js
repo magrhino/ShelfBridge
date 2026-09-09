@@ -27,6 +27,12 @@ export function normalizeWorkTitle(title) {
   return normalizeTitle(withoutAnnotations.split(/[:–—]/, 1)[0]);
 }
 
+// Canonical title search also accepts hyphen-delimited edition subtitles.
+// Identifier validation keeps hyphens as part of the work identity.
+export function normalizeCanonicalWorkTitle(title) {
+  return normalizeTitle(stripAudiobookAnnotations(title).split(/[-:–—]/, 1)[0]);
+}
+
 export function getWorkNumberMarkers(title) {
   return [...String(title || '').matchAll(WORK_NUMBER_PATTERN)]
     .map(([, type, number]) => {
@@ -57,7 +63,6 @@ const AUDIOBOOK_ANNOTATION_TEST_PATTERN =
   /[[(]\s*(?:abridged|audio\s+drama|audio\s+edition|audiobook|dramatized\s+adaptation|full\s+cast(?:\s+production)?|graphic\s*audio|unabridged)\s*[\])]/i;
 const EXPLICIT_WORK_PART_PATTERN =
   /(?:\b(?:vol(?:ume)?|bk|book|pt|part)\b\.?\s*|#\s*)([a-z]+|\d+(?:\.\d+)?)/i;
-
 
 function extractExplicitWorkPartNumber(title) {
   const value = String(title || '').match(EXPLICIT_WORK_PART_PATTERN)?.[1];
@@ -93,4 +98,3 @@ export function isCanonicalTitleReductionSafe(title) {
     SAFE_CANONICAL_SUFFIX_PATTERN.test(suffix)
   );
 }
-

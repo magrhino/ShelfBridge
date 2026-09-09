@@ -27,7 +27,7 @@ import {
   selectBestEdition,
 } from '../utils/unified-edition-scorer.js';
 import { normalizeTitle } from '../utils/text-matching.js';
-import { normalizeWorkTitle } from '../utils/book-title-identity.js';
+import { normalizeCanonicalWorkTitle } from '../utils/book-title-identity.js';
 
 function getEditionFormat(edition) {
   return edition?.reading_format?.format || edition?.physical_format || null;
@@ -166,9 +166,8 @@ export class TitleAuthorMatcher {
       );
 
       // Extract source book metadata for logging
-      const { extractSeries, extractPublicationYear } = await import(
-        '../utils/audiobookshelf-extractor.js'
-      );
+      const { extractSeries, extractPublicationYear } =
+        await import('../utils/audiobookshelf-extractor.js');
       const sourceSeries = extractSeries(absBook);
       const sourceYear = extractPublicationYear(absBook);
 
@@ -264,7 +263,7 @@ export class TitleAuthorMatcher {
         }
       }
 
-      const canonicalSearchTitle = normalizeWorkTitle(title);
+      const canonicalSearchTitle = normalizeCanonicalWorkTitle(title);
       const initialSearchUsedTitleOnly = searchResults.some(result =>
         String(result?._searchMetadata?.searchStrategy || '').startsWith(
           'title_only',
@@ -274,9 +273,7 @@ export class TitleAuthorMatcher {
         canonicalExpansionReason &&
         canonicalSearchTitle &&
         (canonicalSearchTitle !== normalizedSearchTitle ||
-          (searchResults.length > 0 &&
-            author &&
-            !initialSearchUsedTitleOnly));
+          (searchResults.length > 0 && author && !initialSearchUsedTitleOnly));
 
       if (canExpandCanonicalCandidates) {
         logger.debug(`Expanding canonical candidates for "${title}"`, {
@@ -576,17 +573,15 @@ export class TitleAuthorMatcher {
               `No Listened edition available for "${title}"; using the best edition on the identified book`,
               {
                 bookId: bestBookMatch.id,
-                availableFormats: bookWithEditions.editions.map(
-                  getEditionFormat,
-                ),
+                availableFormats:
+                  bookWithEditions.editions.map(getEditionFormat),
               },
             );
           }
 
           const editionSelection = selectBestEdition(editionCandidates, {
             sourceFormat: userFormat,
-            sourceDuration:
-              extractAudioDurationFromAudiobookshelf(absBook),
+            sourceDuration: extractAudioDurationFromAudiobookshelf(absBook),
             sourceNarrator: narrator,
             profile: PROFILES.TITLE_AUTHOR,
             formatMapper: getEditionFormat,
@@ -789,8 +784,7 @@ export class TitleAuthorMatcher {
               confidence: bestScoredBook._bookIdentificationScore.confidence,
               isBookMatch: bestScoredBook._bookIdentificationScore.isBookMatch,
               strongIdentityEvidence:
-                bestScoredBook._bookIdentificationScore
-                  .strongIdentityEvidence,
+                bestScoredBook._bookIdentificationScore.strongIdentityEvidence,
             },
             suggestion:
               bestScore > 45 && bestScore < confidenceThreshold * 100

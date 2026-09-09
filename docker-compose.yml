@@ -1,6 +1,6 @@
 services:
   shelfbridge:
-    image: ghcr.io/rohit-purandare/shelfbridge:latest
+    image: ghcr.io/magrhino/shelfbridge:fork
     # Uncomment the line below and comment the image line above to build locally
     # build: .
     container_name: shelfbridge

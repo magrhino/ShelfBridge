@@ -5,6 +5,18 @@ All notable changes to ShelfBridge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Maintained fork integrating the combined matching, sync, reporting, and cache fixes with refinements from upstream PRs #236–#244.
+- Manual multi-platform image publishing with a verified `fork` tag and commit-specific images for rollback.
+
+### Changed
+
+- Fork pull requests build images without publishing; the Compose default uses the maintained fork image.
+- Updated the transitive lint filesystem dependency to pass the existing dependency audit.
+
 ## [1.23.13](https://github.com/rohit-purandare/ShelfBridge/compare/v1.23.12...v1.23.13) (2026-08-10)
 
 

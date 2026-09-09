@@ -1,3 +1,5 @@
+> For this maintained fork, publishing is manual. See the [fork maintenance guide](Fork-Maintenance.md). The release automation described below documents upstream.
+
 # GitHub Workflows
 
 This page documents all automated workflows that run on the ShelfBridge repository to ensure code quality, security, and reliable deployments.

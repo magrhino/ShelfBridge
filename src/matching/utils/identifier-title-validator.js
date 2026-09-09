@@ -18,7 +18,8 @@ const MIN_IDENTIFIER_TITLE_SIMILARITY = 0.75;
 export function isIdentifierTitlePlausible(sourceTitle, candidateTitle) {
   if (!sourceTitle || !candidateTitle) return true;
 
-  if (hasConflictingExplicitWorkParts(sourceTitle, candidateTitle)) return false;
+  if (hasConflictingExplicitWorkParts(sourceTitle, candidateTitle))
+    return false;
 
   const sourceWorkNumbers = getWorkNumberMarkers(sourceTitle);
   const candidateWorkNumbers = getWorkNumberMarkers(candidateTitle);
