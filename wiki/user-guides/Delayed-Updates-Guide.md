@@ -198,9 +198,10 @@ delayed_updates:
 
 **✅ Startup Recovery**
 
-- Active sessions detected after app restart
-- Automatic processing of interrupted sessions
-- Complete progress history maintained
+- Expired sessions are recovered during normal sync after loading the current Hardcover library, including after restart.
+- Recovery uses the cached edition to resolve the real library book and applies normal progress units, completion handling, and regression protection.
+- Failed writes or missing library editions retain pending progress for a later retry.
+- Dry-run mode leaves pending recovery sessions untouched and makes no recovery writes.
 
 **✅ Maximum Delay Safety**
 

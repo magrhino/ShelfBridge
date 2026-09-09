@@ -1949,7 +1949,7 @@ export class BookCache {
       const stmt = this.db.prepare(`
         SELECT user_id, identifier, identifier_type, title, 
                session_pending_progress, session_last_change,
-               progress_percent, last_hardcover_sync
+               progress_percent, last_hardcover_sync, edition_id, author, started_at
         FROM books 
         WHERE user_id = ? 
           AND session_is_active = 1 

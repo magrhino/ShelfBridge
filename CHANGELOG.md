@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Maintained fork integrating the combined matching, sync, reporting, and cache fixes with refinements from upstream PRs #236–#244.
 - Manual multi-platform image publishing with a verified `fork` tag and commit-specific images for rollback.
 
+### Fixed
+
+- Recover delayed sessions using current Hardcover library IDs and verified progress writes; retain failed updates for retry and leave pending sessions untouched during dry runs.
+
 ### Changed
 
 - Fork pull requests build images without publishing; the Compose default uses the maintained fork image.
